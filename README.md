@@ -3,6 +3,7 @@ Proxy for dcm4chee 5.x to dcm4chee 2.x
 
 
 # Workflow
+```markdown
   +-------------------+       +-------------------+       +-------------------+
   |                   |       |                   |       |                   |
   |   OHIF Viewer     | ----> |     Proxy         | ----> |  dcm4chee 2.x     |
@@ -22,3 +23,4 @@ Proxy for dcm4chee 5.x to dcm4chee 2.x
                                       | 4. Logs Requests and
                                       |    Stores Configurations
                                       v
+```
