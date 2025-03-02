@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      args:
+        - WEB_PORT=${WEB_PORT}
+        - DICOM_WEB_PORT=${DICOM_WEB_PORT}
+        - PG_HOST=${PG_HOST}
+        - PG_PORT=${PG_PORT}
+        - PG_USER=${PG_USER}
+        - PG_PASSWORD=${PG_PASSWORD}
+        - PG_DATABASE=${PG_DATABASE}
+        - DICOM_HOST=${DICOM_HOST}
+        - DICOM_PORT=${DICOM_PORT}
+        - DICOM_AE_TITLE=${DICOM_AE_TITLE}
+        - DICOM_REMOTE_AE_TITLE=${DICOM_REMOTE_AE_TITLE}
+        - JWT_SECRET=${JWT_SECRET}
+        - ADMIN_USERNAME=${ADMIN_USERNAME}
+        - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+    ports:
+      - "${WEB_PORT}:${WEB_PORT}"  # Map the web server port
+      - "${DICOM_WEB_PORT}:${DICOM_WEB_PORT}"  # Map the DICOM web server port
+    env_file:
+      - .env  # Load environment variables from .env file
+    depends_on:
+      - db
+
+  db:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: ${PG_USER}
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+      POSTGRES_DB: ${PG_DATABASE}
+    ports:
+      - "${PG_PORT}:5432"  # Map the PostgreSQL port
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
