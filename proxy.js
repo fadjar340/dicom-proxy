@@ -75,8 +75,8 @@ const deleteAETitle = async (name) => {
   return rowCount;
 };
 
-const getLogs = async () => {
-  const { rows } = await pool.query('SELECT * FROM wado_requests UNION ALL SELECT * FROM qido_requests UNION ALL SELECT * FROM stow_requests');
+const getLogs = async (logTable, limitNum, offset) => {
+  const { rows } = await pool.query(`SELECT * FROM ${logTable} LIMIT $1 OFFSET $2`, [limitNum, offset]);
   return rows;
 };
 
@@ -297,18 +297,18 @@ app.post('/delete-ae-title/:name', authenticateToken, isAdmin, async (req, res) 
 // User and admin routes (read-only access)
 app.get('/view-logs', authenticateToken, isUser, async (req, res) => {
     const { logTable = 'wado_requests', limit = 10, page = 1 } = req.query;
-  
+
     // Convert limit and page to numbers
     const limitNum = parseInt(limit, 10);
     const pageNum = parseInt(page, 10);
     const offset = (pageNum - 1) * limitNum;
-  
+
     try {
-      // Fetch logs and total count
+      // Fetch logs
       const logs = await getLogs(logTable, limitNum, offset);
-      const totalCount = await getLogCount(logTable);
-      const totalPages = Math.ceil(totalCount / limitNum);
-  
+      const totalCount = await pool.query(`SELECT COUNT(*) FROM ${logTable}`);
+      const totalPages = Math.ceil(totalCount.rows[0].count / limitNum);
+
       // Render the view-logs page
       res.render('view-logs', {
         logs,

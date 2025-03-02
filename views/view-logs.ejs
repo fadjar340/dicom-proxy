@@ -1,0 +1,76 @@
+<% include layout %>
+<div class="card card-custom p-4">
+  <h2 class="mb-4">View Logs</h2>
+
+  <!-- Log Table Selection -->
+  <form action="/view-logs" method="GET" class="mb-4">
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label for="logTable" class="form-label">Select Log Table:</label>
+        <select name="logTable" id="logTable" class="form-select">
+          <option value="wado_requests" <%= logTable === 'wado_requests' ? 'selected' : '' %>>WADO Requests</option>
+          <option value="qido_requests" <%= logTable === 'qido_requests' ? 'selected' : '' %>>QIDO Requests</option>
+          <option value="stow_requests" <%= logTable === 'stow_requests' ? 'selected' : '' %>>STOW Requests</option>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label for="limit" class="form-label">Logs per Page:</label>
+        <select name="limit" id="limit" class="form-select">
+          <option value="10" <%= limit === 10 ? 'selected' : '' %>>10</option>
+          <option value="50" <%= limit === 50 ? 'selected' : '' %>>50</option>
+          <option value="100" <%= limit === 100 ? 'selected' : '' %>>100</option>
+        </select>
+      </div>
+      <div class="col-md-4 d-flex align-items-end">
+        <button type="submit" class="btn btn-custom w-100">Apply</button>
+      </div>
+    </div>
+  </form>
+
+  <!-- Log Table -->
+  <div class="table-responsive">
+    <table class="table table-custom">
+      <thead>
+        <tr>
+          <th>Timestamp</th>
+          <th>Study UID</th>
+          <th>Series UID</th>
+          <th>Object UID</th>
+          <th>AE Title</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% logs.forEach(log => { %>
+          <tr>
+            <td><%= log.timestamp.toLocaleString() %></td>
+            <td><%= log.study_uid %></td>
+            <td><%= log.series_uid %></td>
+            <td><%= log.object_uid %></td>
+            <td><%= log.ae_title %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  <nav aria-label="Page navigation" class="mt-4">
+    <ul class="pagination pagination-custom justify-content-center">
+      <% if (page > 1) { %>
+        <li class="page-item">
+          <a class="page-link" href="/view-logs?logTable=<%= logTable %>&limit=<%= limit %>&page=<%= page - 1 %>">Previous</a>
+        </li>
+      <% } %>
+
+      <li class="page-item disabled">
+        <span class="page-link">Page <%= page %> of <%= totalPages %></span>
+      </li>
+
+      <% if (page < totalPages) { %>
+        <li class="page-item">
+          <a class="page-link" href="/view-logs?logTable=<%= logTable %>&limit=<%= limit %>&page=<%= page + 1 %>">Next</a>
+        </li>
+      <% } %>
+    </ul>
+  </nav>
+</div>

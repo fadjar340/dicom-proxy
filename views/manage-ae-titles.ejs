@@ -1,61 +1,40 @@
 <% include layout %>
-<h2>Manage AE Titles</h2>
-<table class="table">
-  <thead>
-    <tr>
-      <th>Name</th>
-      <th>Host</th>
-      <th>Port</th>
-      <th>AE Title</th>
-      <th>Remote AE Title</th>
-      <th>Created At</th>
-      <th>Updated At</th>
-      <th>Actions</th>
-    </tr>
-  </thead>
-  <tbody>
-    <% aeTitles.forEach(aeTitle => { %>
-      <tr>
-        <td><%= aeTitle.name %></td>
-        <td><%= aeTitle.host %></td>
-        <td><%= aeTitle.port %></td>
-        <td><%= aeTitle.aeTitle %></td>
-        <td><%= aeTitle.remoteAETitle %></td>
-        <td><%= aeTitle.created_at.toLocaleString() %></td>
-        <td>
-          <input type="datetime-local" 
-                 value="<%= new Date(aeTitle.updated_at).toISOString().slice(0, 16) %>" 
-                 onchange="updateAETitleTimestamp('<%= aeTitle.name %>', this.value)" />
-        </td>
-        <td>
-          <a href="/edit-ae-title/<%= aeTitle.name %>" class="btn btn-sm btn-warning">Edit</a>
-          <form action="/delete-ae-title/<%= aeTitle.name %>" method="POST" style="display:inline;">
-            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
-          </form>
-        </td>
-      </tr>
-    <% }) %>
-  </tbody>
-</table>
-<a href="/add-ae-title" class="btn btn-success">Add AE Title</a>
+<div class="card card-custom p-4">
+  <h2 class="mb-4">Manage AE Titles</h2>
 
-<script>
-  function updateAETitleTimestamp(name, timestamp) {
-    fetch(`/update-ae-title-timestamp/${name}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ updated_at: timestamp }),
-    })
-      .then(response => response.json())
-      .then(data => {
-        if (data.success) {
-          alert('Timestamp updated successfully');
-        } else {
-          alert('Failed to update timestamp');
-        }
-      })
-      .catch(error => console.error('Error:', error));
-  }
-</script>
+  <!-- Add AE Title Button -->
+  <a href="/add-ae-title" class="btn btn-custom mb-4">Add AE Title</a>
+
+  <!-- AE Titles Table -->
+  <div class="table-responsive">
+    <table class="table table-custom">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Host</th>
+          <th>Port</th>
+          <th>AE Title</th>
+          <th>Remote AE Title</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% aeTitles.forEach(aeTitle => { %>
+          <tr>
+            <td><%= aeTitle.name %></td>
+            <td><%= aeTitle.host %></td>
+            <td><%= aeTitle.port %></td>
+            <td><%= aeTitle.aeTitle %></td>
+            <td><%= aeTitle.remoteAETitle %></td>
+            <td>
+              <a href="/edit-ae-title/<%= aeTitle.name %>" class="btn btn-sm btn-warning">Edit</a>
+              <form action="/delete-ae-title/<%= aeTitle.name %>" method="POST" style="display:inline;">
+                <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
