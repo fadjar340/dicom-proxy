@@ -38,7 +38,7 @@ docker compose up --build
 # Usage
 ```
 http://localhost:3000 (for web apps)
-http://localhost:8000 (for DICOM Clients)
+http://localhost:8080 (for DICOM Clients)
 ```
 
 ## OHIF Viewer config
