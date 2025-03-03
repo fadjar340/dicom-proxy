@@ -1,5 +1,4 @@
 const { Pool } = require('pg');
-const bcrypt = require('bcryptjs');
 
 const pool = new Pool({
   host: process.env.PG_HOST,
@@ -22,7 +21,7 @@ const getUsers = async () => {
 
 const addUser = async (user) => {
   const { username, password, role } = user;
-  const hashedPassword = bcrypt.hashSync(password, 10);
+  const hashedPassword = `crypt('${password}', gen_salt('bf'))`; // Use PostgreSQL's crypt function
   try {
     const { rows } = await pool.query(
       'INSERT INTO users (username, password, role) VALUES ($1, $2, $3) RETURNING *',
@@ -58,13 +57,28 @@ const deleteUser = async (username) => {
   }
 };
 
+//const updateUser = async (user) => {
+//  const { username, password, role } = user;
+//  const hashedPassword = bcrypt.hashSync(password, 10);
+//  const { rows } = await pool.query(
+//    'update users SET username = $1, password = $2, role = $3 WHERE username = $1RETURNING *',
+//    [username, hashedPassword, role]
+//  );
+//  return rows[0];
+//};
+
 const getUserByUsername = async (username) => {
+  console.log(`Fetching user by username: ${username}`);
   try {
     const { rows } = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
+    if (rows.length === 0) {
+      console.error(`No user found with username: ${username}`);
+      throw new Error(`User not found: ${username}`);
+    }
     return rows[0];
   } catch (error) {
     console.error('Error fetching user by username:', error);
-    throw error;
+    throw new Error('Database query failed. Please try again later.');
   }
 };
 
@@ -155,33 +169,35 @@ const logStowRequest = async (studyUID, seriesUID, objectUID, aeTitle) => {
 };
 
 const getLogs = async (table, limit, offset) => {
-    try {
-      const { rows } = await pool.query(
-        `SELECT * FROM ${table} ORDER BY timestamp DESC LIMIT $1 OFFSET $2`,
-        [limit, offset]
-      );
-      return rows;
-    } catch (error) {
-      console.error(`Error fetching logs from ${table}:`, error);
-      throw error;
-    }
-  };
-  
-  const getLogCount = async (table) => {
-    try {
-      const { rows } = await pool.query(`SELECT COUNT(*) FROM ${table}`);
-      return parseInt(rows[0].count, 10);
-    } catch (error) {
-      console.error(`Error fetching log count from ${table}:`, error);
-      throw error;
-    }
-  };
+  try {
+    const { rows } = await pool.query(
+      `SELECT * FROM ${table} ORDER BY timestamp DESC LIMIT $1 OFFSET $2`,
+      [limit, offset]
+    );
+    return rows;
+  } catch (error) {
+    console.error(`Error fetching logs from ${table}:`, error);
+    throw error;
+  }
+};
+
+const getLogCount = async (table) => {
+  try {
+    const { rows } = await pool.query(`SELECT COUNT(*) FROM ${table}`);
+    return parseInt(rows[0].count, 10);
+  } catch (error) {
+    console.error(`Error fetching log count from ${table}:`, error);
+    throw error;
+  }
+};
 
 module.exports = {
+  pool,
   getUsers,
   addUser,
   updateUserRole,
   deleteUser,
+//  updateUser,
   getUserByUsername,
   getAETitles,
   addAETitle,

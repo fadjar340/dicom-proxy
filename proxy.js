@@ -1,16 +1,15 @@
 const express = require('express');
 const { DICOMwebClient } = require('dicomweb-client');
 const { Client } = require('dicom-dimse');
-const { DICOMwebServer } = require('dicomweb-server');
 const bodyParser = require('body-parser');
-const passport = require('passport');
-const jwt = require('jsonwebtoken');
+const { passport } = require('./auth');
 const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
+const morgan = require('morgan'); // Importing morgan for logging
 require('dotenv').config();
 
 const app = express();
-const port = process.env.WEB_PORT || 3000;
+const port = process.env.WEB_PORT || 3001;
 
 // Get public
 app.use(express.static('public'));
@@ -23,8 +22,19 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.set('view engine', 'ejs');
 app.set('views', './views');
 
-// Initialize Passport and session
-app.use(passport.initialize());
+const session = require('express-session');
+const { errorMonitor } = require('dicom-dimse/Connection');
+
+app.use(session({
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: true,
+})); // Initialize session before Passport
+app.use(passport.initialize()); // Initialize Passport
+app.use(passport.session()); // Use Passport session
+
+// Use morgan for logging requests
+app.use(morgan('combined'));
 
 // PostgreSQL connection pool
 const pool = new Pool({
@@ -35,14 +45,23 @@ const pool = new Pool({
   database: process.env.PG_DATABASE,
 });
 
+// Middleware to check if user is authenticated
+const isAuthenticated = (req, res, next) => {
+  if (!req.user) {
+    return res.redirect('/login'); // Redirect to login if not authenticated
+  }
+  next();
+};
+
 // Helper functions for database operations
+// User
 const getUsers = async () => {
   const { rows } = await pool.query('SELECT * FROM users');
   return rows;
 };
 
 const addUser = async (user) => {
-  const { username, password, role } = user;
+  const { username, password, role = 'user' } = user; // Default role to 'user'
   const hashedPassword = bcrypt.hashSync(password, 10);
   const { rows } = await pool.query(
     'INSERT INTO users (username, password, role) VALUES ($1, $2, $3) RETURNING *',
@@ -56,15 +75,32 @@ const deleteUser = async (username) => {
   return rowCount;
 };
 
+const updateUser = async (user) => {
+  const { username, password, role } = user;
+  const hashedPassword = bcrypt.hashSync(password, 10);
+  const { rows } = await pool.query(
+    'update users SET username = $1, password = $2, role = $3 WHERE username = $1RETURNING *',
+    [username, hashedPassword, role]
+  );
+  return rows[0];
+};
+
+// AETitle
 const getAETitles = async () => {
   const { rows } = await pool.query('SELECT * FROM ae_titles');
   return rows;
 };
 
+const getAETitle = async (name) => {
+  const { rows } = await pool.query('SELECT * FROM ae_titles WHERE name = $1', [name]);
+  return rows[0]; // Return the AETitle object
+ 
+}
+
 const addAETitle = async (aeTitle) => {
   const { name, host, port, aeTitle: aeTitleValue, remoteAETitle } = aeTitle;
   const { rows } = await pool.query(
-    'INSERT INTO ae_titles (name, host, port, aeTitle, remoteAETitle) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+    'INSERT INTO ae_titles (name, host, port, aetitle, remoteaetitle) VALUES ($1, $2, $3, $4, $5) RETURNing *',
     [name, host, port, aeTitleValue, remoteAETitle]
   );
   return rows[0];
@@ -75,17 +111,46 @@ const deleteAETitle = async (name) => {
   return rowCount;
 };
 
+const updateAETitle = async (aeTitle) => {
+  const { name, host, port, aeTitle: aeTitleValue, remoteAETitle } = aeTitle;
+  const { rows } = await pool.query(
+    'UPDATE ae_titles SET name = $1, host = $2, port = $3, aetitle = $4, remoteaetitle = $5 WHERE name = $1 RETURNing *',
+    [name, host, port, aeTitleValue, remoteAETitle]
+  );
+  return rows;
+};
+
 const getLogs = async (logTable, limitNum, offset) => {
   const { rows } = await pool.query(`SELECT * FROM ${logTable} LIMIT $1 OFFSET $2`, [limitNum, offset]);
   return rows;
 };
 
-// Middleware for role-based access control
+passport.serializeUser((user, done) => {
+  done(null, user.username); // Store username in session
+});
+
+passport.deserializeUser(async (username, done) => {
+  try {
+    const user = await getUserByUsername(username); // Fetch user by username
+    console.log('User found:', user); // Log the user object found
+    done(null, user);
+  } catch (err) {
+    done(err);
+  }
+});
+
+const getUserByUsername = async (username) => {
+  console.log('Fetching user by username:', username); // Log the username being fetched
+  const { rows } = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
+  console.log('Fetched user rows:', rows); // Log the rows fetched from the database
+  return rows[0]; // Return the user object
+};
+
 const isAdmin = (req, res, next) => {
   if (req.user.role === 'admin') {
     next(); // Allow access for admin
   } else {
-    res.status(403).json({ error: 'Access denied: Admin role required' });
+    return res.redirect('/login'); // Redirect to login if not authenticated
   }
 };
 
@@ -97,30 +162,7 @@ const isUser = (req, res, next) => {
   }
 };
 
-// DICOM Web server configuration (for OHIF Viewer)
-const dicomWebServer = new DICOMwebServer({
-  port: process.env.DICOM_WEB_PORT || 8080, // Port for DICOM Web requests
-  wado: {
-    basePath: '/wado',
-  },
-  qido: {
-    basePath: '/qido',
-  },
-  stow: {
-    basePath: '/stow',
-  },
-});
-
-// Helper function to get DIMSE client for a specific AE Title
-const getDimseClient = (aeTitleConfig) => {
-  return new Client({
-    host: aeTitleConfig.host,
-    port: aeTitleConfig.port,
-    aeTitle: aeTitleConfig.aeTitle,
-    remoteAETitle: aeTitleConfig.remoteAETitle,
-  });
-};
-
+// Proxy Endpoints
 // Proxy endpoint for WADO-RS
 app.get('/wado', async (req, res) => {
   const { studyUID, seriesUID, objectUID, aeTitle } = req.query;
@@ -219,83 +261,162 @@ app.post('/stow', async (req, res) => {
   }
 });
 
-// Login endpoint
-app.post('/login', (req, res, next) => {
-  passport.authenticate('local', (err, user, info) => {
-    if (err) return next(err);
-    if (!user) return res.status(401).json({ error: info.message });
+// End of Proxy Endpoints
 
-    const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    res.json({ success: true, token });
-  })(req, res, next);
+
+// Start of web apps Endpoints
+// All GET requests for web apps
+
+// Login endpoint
+app.get('/', (req, res) => {
+  res.render('login'); // Assuming a welcome.ejs file will be created
 });
 
-// Middleware to verify JWT token
-const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'Access denied' });
 
-  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ error: 'Invalid token' });
-    req.user = user;
-    next();
+app.get('/login', (req, res) => {
+  res.render('login'); // Render the login view
+});
+
+app.get('/logout', (req, res) => {
+req.logout((err) => { // Call the logout function from Passport with a callback
+  if (err) {
+    return res.status(500).json({ error: 'Logout failed' });
+  }
+  res.redirect('/login'); // Redirect to the login page after logout
+});
+});
+
+app.get('/error', (req, res) => {
+  res.render('error', { message: 'An error occurred. Please try again.' });
   });
-};
 
-// Admin-only routes (read-write access)
-app.get('/manage-users', authenticateToken, isAdmin, async (req, res) => {
+// Users
+app.get('/manage-users', async (req, res) => {
   const users = await getUsers();
   res.render('manage-users', { users });
 });
 
-app.post('/add-user', authenticateToken, isAdmin, async (req, res) => {
-  const { username, password, role } = req.body;
-  try {
-    await addUser({ username, password, role });
-    res.redirect('/manage-users');
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+//app.get('/update-user/:username', isAuthenticated, isAdmin, async (req, res) => {
+//  const { username } = req.params; // Get username from request parameters
+//  try {
+//    const user = await getUserByUsername(username); // Fetch user by username
+//    if (user) {
+//      res.render('update-user', { user }); // Render edit user view with user data
+//    } else {
+//      res.render('update-user', { user: null, error: 'User not found' }); // Render with error message
+//    }
+//  } catch (error) {
+//    res.render('error', { message: error.message }); // Handle any errors that occur
+//  }
+//}); 
+
+app.get('/add-user', (req, res) => {
+  res.render('add-user'); // Render the add-user view
+  });
+
+// AETitles
+app.get('/manage-ae-titles', async (req, res) => {
+  const aeTitles = await getAETitles();
+  res.render('manage-ae-titles', { aeTitles });
+});
+  
+app.get('/add-ae-title', (req, res) => {
+  res.render('add-ae-title'); // Render the add-ae-title view
+  });
+
+app.get('/edit-ae-title/:name', isAuthenticated, isAdmin, async (req, res) => {
+  const { name } = req.params;
+     const aeTitle = await getAETitle(name); ; // Fetch the specific AE title
+     if (aeTitle) {
+         res.render('edit-ae-title', { aeTitle }); // Pass the aeTitle to the view
+     } else {
+         res.render('error', { message: 'AE Title not found' }); // Render error if not found
+     }
 });
 
-app.post('/delete-user/:username', authenticateToken, isAdmin, async (req, res) => {
+// All POST endpoints
+app.post('/login', (req, res, next) => {
+  passport.authenticate('local', (err, user, info) => {
+    if (err) return next(err);
+    if (!user) return res.redirect('/login'); // Redirect to login if not authenticated
+    req.logIn(user, (err) => {
+      if (err) return next(err);
+      res.redirect('/manage-users'); // Redirect to manage-users after successful login
+    });
+  })(req, res, next);
+});
+
+// Users
+app.post('/add-user', isAuthenticated, isAdmin, async (req, res) => {
+  const user = req.body;
+  try {
+    const newUser = await addUser(user);
+    res.redirect('/manage-users'); // Redirect to manage-users after successful registration
+  } catch (error) {
+    return res.redirect('/login'); // Redirect to login if not authenticated
+    }
+}); 
+
+app.post('/delete-user/:username', isAuthenticated, isAdmin, async (req, res) => {
   const { username } = req.params;
   try {
     await deleteUser(username);
     res.redirect('/manage-users');
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    return res.redirect('/login'); // Redirect to login if not authenticated
   }
 });
 
-app.get('/manage-ae-titles', authenticateToken, isAdmin, async (req, res) => {
-  const aeTitles = await getAETitles();
-  res.render('manage-ae-titles', { aeTitles });
-});
+//app.post('/update-user/:username', isAuthenticated, isAdmin, async (req, res) => {
+//  const { username } = req.params;
+//  const { password, role } = req.body; // Get updated data from the form
+//  try {
+//      const updateUser = await updateUser({ username, password, role }); // Update user in the database
+//      res.redirect('/manage-users'); // Redirect to manage users after successful update
+//  } catch (error) {
+//      res.render('error', { message: error.message }); // Handle any errors that occur
+//  }
+//});
 
-app.post('/add-ae-title', authenticateToken, isAdmin, async (req, res) => {
-  const { name, host, port, aeTitle, remoteAETitle } = req.body;
+// AETitles
+app.post('/add-ae-title', isAuthenticated, isAdmin, async (req, res) => {
+  const  { name, host, port, aeTitle: aeTitleValue, remoteAETitle } = req.body;
   try {
-    await addAETitle({ name, host, port, aeTitle, remoteAETitle });
-    res.redirect('/manage-ae-titles');
+    const newAETitle = await addAETitle({ name, host, port, aeTitle: aeTitleValue, remoteAETitle });
+    res.redirect('/manage-ae-titles'); 
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    return res.redirect('/login'); // Redirect to login if not authenticated
+    }
   }
-});
+); 
 
-app.post('/delete-ae-title/:name', authenticateToken, isAdmin, async (req, res) => {
+app.post('/delete-ae-title/:name', isAuthenticated, isAdmin, async (req, res) => {
   const { name } = req.params;
   try {
     await deleteAETitle(name);
     res.redirect('/manage-ae-titles');
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    return res.redirect('/login'); // Redirect to login if not authenticated
   }
 });
 
-// User and admin routes (read-only access)
-app.get('/view-logs', authenticateToken, isUser, async (req, res) => {
+app.post('/edit-ae-title/:name', isAuthenticated, isAdmin, async (req, res) => {
+  const { name } = req.params;
+  const { newHost, newPort, newAETitle, newremoteAETitle } = req.body; // Assuming new data is sent in the body
+  try {
+    // Logic to update the AE title in the database
+    await updateAETitle(name, { host: newHost, port: newPort, aeTitle: newAETitle, remoteAETitle: newremoteAETitle });
+    res.redirect('/manage-ae-titles');
+  } catch (error) {
+    return res.redirect('/login'); // Redirect to login if not authenticated
+  }
+});
+
+// End of POST web apps
+
+
+// Get for View Log
+app.get('/view-logs',  async (req, res) => {
     const { logTable = 'wado_requests', limit = 10, page = 1 } = req.query;
 
     // Convert limit and page to numbers
@@ -318,14 +439,11 @@ app.get('/view-logs', authenticateToken, isUser, async (req, res) => {
         totalPages,
       });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      return res.redirect('/login'); // Redirect to login if not authenticated
     }
   });
-  
-// Start the DICOM Web server
-dicomWebServer.start();
 
-// Start the proxy server
+  // Start the proxy server
 app.listen(port, () => {
   console.log(`DICOM Web proxy running on port ${port}`);
-});
+})

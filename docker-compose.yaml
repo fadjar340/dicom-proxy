@@ -37,6 +37,7 @@ services:
       - "${PG_PORT}:5432"  # Map the PostgreSQL port
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./db-init.sql:/docker-entrypoint-initdb.d/db-init.sql  # Mount the SQL file
 
 volumes:
   postgres_data:
