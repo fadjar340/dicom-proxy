@@ -1,0 +1,41 @@
+<%- include('layout.ejs') %>
+<div class="card card-custom p-4">
+  <h2 class="mb-4">Add User</h2>
+  <form action="/add-user" method="POST">
+    <div class="mb-3">
+      <label for="username" class="form-label">Username</label>
+      <input type="text" class="form-control" id="username" name="username" required>
+    </div>
+    <div class="mb-3">
+      <label for="password" class="form-label">Password</label>
+      <input type="password" class="form-control" id="password" name="password" required>
+    </div>
+    <div class="mb-3">
+      <label for="role" class="form-label">Role</label>
+      <select class="form-select" id="role" name="role" required>
+        <option value="user">User</option>
+        <option value="admin">Admin</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-custom">Add User</button>
+    <a href="/manage-users" class="btn btn-custom">Cancel</a>
+  </form>
+  <div id="accessDeniedPopup" class="popup" style="display:none;">
+    <div class="popup-content">
+      <span class="close" onclick="closePopup()">&times;</span>
+      <h2>Access Denied</h2>
+      <p>You do not have permission to access this page.</p>
+      <a href="/login" class="btn">Login</a>
+    </div>
+  </div>
+
+  <script>
+    function showPopup() {
+        document.getElementById('accessDeniedPopup').style.display = 'block';
+    }
+
+    function closePopup() {
+        document.getElementById('accessDeniedPopup').style.display = 'none';
+    }
+  </script>
+</div>

@@ -1,0 +1,45 @@
+<%- include('layout.ejs') %>
+<div class="card card-custom p-4">
+  <h2 class="mb-4">Add AE Title</h2>
+  <form action="/add-ae-title" method="POST">
+    <div class="mb-3">
+      <label for="name" class="form-label">Name</label>
+      <input type="text" class="form-control" id="name" name="name" required>
+    </div>
+    <div class="mb-3">
+      <label for="host" class="form-label">Host</label>
+      <input type="text" class="form-control" id="host" name="host" required>
+    </div>
+    <div class="mb-3">
+      <label for="port" class="form-label">Port</label>
+      <input type="number" class="form-control" id="port" name="port" required>
+    </div>
+    <div class="mb-3">
+      <label for="aeTitle" class="form-label">AE Title</label>
+      <input type="text" class="form-control" id="aeTitle" name="aeTitle" required>
+    </div>
+    <div class="mb-3">
+      <label for="remoteAETitle" class="form-label">Remote AE Title</label>
+      <input type="text" class="form-control" id="remoteAETitle" name="remoteAETitle" required>
+    </div>
+    <button type="submit" class="btn btn-custom">Add AE Title</button>
+    <a href="/manage-ae-titles" class="btn btn-custom">Cancel</a>
+  </form>
+  <div id="accessDeniedPopup" class="popup" style="display:none;">
+    <div class="popup-content">
+      <span class="close" onclick="closePopup()">&times;</span>
+      <h2>Access Denied</h2>
+      <p>You do not have permission to access this page.</p>
+      <a href="/login" class="btn">Login</a>
+    </div>
+  </div>
+  <script>
+    function showPopup() {
+        document.getElementById('accessDeniedPopup').style.display = 'block';
+    }
+
+    function closePopup() {
+        document.getElementById('accessDeniedPopup').style.display = 'none';
+    }
+  </script>
+</div>

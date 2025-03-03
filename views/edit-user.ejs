@@ -1,0 +1,18 @@
+<%- include('layout.ejs') %>
+<div class="card card-custom p-4">
+  <h2 class="mb-4">Edit User</h2>
+  <form action="/update-user/<%= user.username %>" method="POST">
+    <div class="mb-3">
+      <label for="username" class="form-label">Username</label>
+      <input type="text" class="form-control" id="username" name="username" value="<%= user.username %>" readonly>
+    </div>
+    <div class="mb-3">
+      <label for="role" class="form-label">Role</label>
+      <select class="form-select" id="role" name="role" required>
+        <option value="admin" <%= user.role === 'admin' ? 'selected' : '' %>>Admin</option>
+        <option value="user" <%= user.role === 'user' ? 'selected' : '' %>>User</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-custom">Update User</button>
+  </form>
+</div>
